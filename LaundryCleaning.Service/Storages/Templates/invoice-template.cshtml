@@ -1,0 +1,292 @@
+@model LaundryCleaning.Common.Models.InvoiceModel
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Invoice #182</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 40px;
+            background: #f8f9fa;
+        }
+
+        .invoice-box {
+            background: #fff;
+            color: #34495e;
+            padding: 40px;
+            max-width: 800px;
+            margin: auto;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.05);
+        }
+
+        .invoice-info div {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .invoice-info .label {
+            font-weight: bold;
+            width: 50%;
+        }
+
+        .invoice-info .value {
+            text-align: right;
+            width: 50%;
+            color: #2c3e50;
+        }
+
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+            .header h1 {
+                color: #2c3e50;
+                margin-bottom: 0;
+            }
+
+            .header span {
+                color: #95a5a6;
+                font-size: 0.9em;
+            }
+
+        .logo {
+            max-height: 50px;
+        }
+
+        .section {
+            margin-top: 30px;
+        }
+
+        .section-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #34495e;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            background: #eef1f5;
+            padding: 20px;
+            border-radius: 5px;
+            font-size: 0.95em;
+            gap: 20px;
+        }
+
+            .info-grid div {
+                flex: 1;
+            }
+
+            .info-grid strong {
+                display: block;
+                margin-bottom: 4px;
+                font-weight: bold;
+            }
+
+        .summary {
+            margin-top: 20px;
+            font-size: 0.95em;
+        }
+
+            .summary b {
+                display: block;
+                margin-bottom: 5px;
+            }
+
+        .table-price {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+            .table-price thead {
+                background: #dfe6ed;
+            }
+
+            .table-price th, table td {
+                padding: 12px;
+                text-align: left;
+                border-bottom: 1px solid #ccc;
+            }
+
+        .totals {
+            margin-top: 20px;
+            width: 100%;
+            font-size: 0.95em;
+        }
+
+            .totals td {
+                padding: 8px;
+            }
+
+                .totals td:last-child {
+                    text-align: right;
+                }
+
+        .total-due {
+            background: #d1e7f8;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .payment-info {
+            margin-top: 40px;
+            background: #f1f5f9;
+            padding: 20px;
+            border-radius: 8px;
+            font-size: 0.95em;
+        }
+
+            .payment-info h3 {
+                margin-top: 0;
+                color: #2c3e50;
+            }
+
+            .payment-info ul {
+                list-style: none;
+                padding-left: 0;
+                margin-top: 10px;
+                margin-bottom: 10px;
+            }
+
+            .payment-info li {
+                margin-bottom: 6px;
+            }
+
+    </style>
+</head>
+<body>
+    <div class="invoice-box">
+        <table style="width: 100%; margin-bottom: 20px;">
+            <tr>
+                <td style="vertical-align: top;">
+                    <div style="font-size: 28px; font-weight: bold; color: #2c3e50;">
+                        INVOICE <span style="color: #95a5a6;">#@Model.InvoiceNumber</span>
+                    </div>
+                    <div style="color: #95a5a6; font-size: 14px; margin-top: 4px;">
+                        Laundry & Cleaning Service Invoice
+                    </div>
+                </td>
+
+                <!-- Logo -->
+                <td style="text-align: right; vertical-align: top;">
+                    <img src="@Model.Logo" alt="Logo" style="width: 50px; height: 50px;" />
+                </td>
+            </tr>
+        </table>
+
+        <table style="width: 100%; background: #eef1f5; padding: 20px; border-radius: 5px; font-size: 0.95em;">
+            <tr>
+                <td style="vertical-align: top;">
+                    <table style="border-collapse: collapse; font-size: 0.95em;">
+                        <tr>
+                            <td><strong>FROM</strong></td>
+                        </tr>
+                        <tr>
+                            <td style="border: none;">
+                                IYON AdryanLF </br>
+                                Jakarta
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+                <td style="vertical-align: top;">
+                    <table style="border-collapse: collapse; font-size: 0.95em;" ">
+                        <tr>
+                            <td><strong>TO</strong></td>
+                        </tr>
+                        <tr>
+                            <td style="border: none;">
+                                Manusia baik<br />
+                                Jakarta
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+                <td style="vertical-align: top;">
+                    <table style="border-collapse: collapse; font-size: 0.95em;">
+                        <tr>
+                            <td style="font-weight: bold; padding-right: 10px;">INVOICE NO.</td>
+                            <td>@Model.InvoiceNumber</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; padding-right: 10px;">INVOICE DATE</td>
+                            <td>@Model.InvoiceDate.ToString("dd MMM yyyy")</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; padding-right: 10px; border: none;">PAYMENT DUE</td>
+                            <td style="border: none;">@Model.InvoicePaymentDueDate.ToString("dd MMM yyyy")</td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+        <hr>
+        <div class="section summary">
+            <h1>SUMMARY</h1>
+        </div>
+
+        <div class="section">
+            <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                <thead style="background: #dfe6ed;">
+                    <tr>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ccc;">DESCRIPTION</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ccc;">QTY</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ccc;">UNIT PRICE</th>
+                        <th style="padding: 12px; text-align: right; border-bottom: 1px solid #ccc;">TOTAL PRICE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.Items)
+                    {
+                        <tr>
+                            <td style="padding: 12px; text-align: left; border-bottom: 1px solid #ccc;">@item.Description</td>
+                            <td style="padding: 12px; text-align: left; border-bottom: 1px solid #ccc;">@item.Quantity</td>
+                            <td style="padding: 12px; text-align: left; border-bottom: 1px solid #ccc;">@item.UnitPrice.ToString("C")</td>
+                            <td style="padding: 12px; text-align: right; border-bottom: 1px solid #ccc;">@item.TotalPrice.ToString("C")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <table class="totals">
+            <tr>
+                <td>Invoice Subtotal</td>
+                <td>@Model.SubTotal.ToString("C")</td>
+            </tr>
+            <tr>
+                <td>Invoice Tax (12% Ppn)</td>
+                <td>@Model.InvoiceTax.ToString("C")</td>
+            </tr>
+            <tr class="total-due">
+                <td>Total Due</td>
+                <td>@Model.Total.ToString("C")</td>
+            </tr>
+        </table>
+        <hr>
+
+        <div class="section payment-info">
+            <h3>Payment Instructions</h3>
+            <p>Please transfer the payment to the following account:</p>
+
+            <ul>
+                <li><strong>Bank Name: </strong> @Model.PaymentDetail.BankName</li>
+                <li><strong>Account Number: </strong> @Model.PaymentDetail.BankAccountNumber</li>
+                <li><strong>Account Name: </strong> @Model.PaymentDetail.BankAccountName</li>
+                <li><strong>Virtual Account (OVO / Dana / ShopeePay): </strong> @Model.PaymentDetail.BankVirtualAccount</li>
+            </ul>
+
+            <p>Use the invoice number <strong>#@Model.InvoiceNumber</strong> as the payment reference.</p>
+        </div>
+    </div>
+</body>
+</html>
