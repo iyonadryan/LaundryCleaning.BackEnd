@@ -40,7 +40,8 @@ Project ini merupakan backend **trial & error** yang dibuat untuk eksperimen dan
 Proyek ini menggunakan [HotChocolate](https://chillicream.com/docs/hotchocolate/v15) sebagai implementasi GraphQL di ASP.NET Core. <br />
 Setelah aplikasi dijalankan, kamu dapat mengakses GraphQL Playground melalui browser:
 ```bash
-http://localhost:5292/graphql
+http://localhost:5202/graphql/
+https://localhost:7064/graphql/
 ```
 > 🔍 Akses Playground (Banana Cake Pop)
 > 
