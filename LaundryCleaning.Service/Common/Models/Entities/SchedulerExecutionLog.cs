@@ -8,5 +8,6 @@ namespace LaundryCleaning.Service.Common.Models.Entities
         public DateTime ExecutedAt { get; set; } = DateTime.UtcNow;
         public bool IsSuccess { get; set; } = false;
         public string? ErrorMessage { get; set; }
+        public int RetryCount { get; set; } = 0;
     }
 }
