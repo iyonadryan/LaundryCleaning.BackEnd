@@ -1,0 +1,8 @@
+cronJobs:
+  - arguments:
+      - "--closingmonthly"
+    schedule: "*/2 * * * *"  # untuk testing setiap 2 menit
+
+  - arguments:
+      - "--reportdaily"
+    schedule: "*/1 * * * *"  # untuk testing setiap 1 menit

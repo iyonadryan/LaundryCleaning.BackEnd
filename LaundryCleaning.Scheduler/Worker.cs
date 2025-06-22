@@ -1,19 +1,24 @@
 using LaundryCleaning.Scheduler.Config;
 using LaundryCleaning.Scheduler.Jobs;
+using LaundryCleaning.Service.Common.Models.Entities;
+using LaundryCleaning.Service.Data;
 using Serilog;
 
 namespace LaundryCleaning.Scheduler
 {
     public class Worker : BackgroundService
     {
+        private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<Worker> _logger;
         private readonly SchedulerConfig _config;
         private readonly IEnumerable<ITrackableJob> _jobs;
 
-        public Worker(ILogger<Worker> logger
+        public Worker(IServiceScopeFactory scopeFactory
+            , ILogger<Worker> logger
             ,SchedulerConfig config ,
             IEnumerable<ITrackableJob> jobs)
         {
+            _scopeFactory = scopeFactory;
             _logger = logger;
             _config = config;
             _jobs = jobs;
@@ -53,15 +58,32 @@ namespace LaundryCleaning.Scheduler
 
                         if (matchedJob != null)
                         {
+                            using var scope = _scopeFactory.CreateScope();
+                            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+                            var log = new SchedulerExecutionLog
+                            {
+                                JobName = matchedJob.JobName,
+                                ExecutedAt = DateTime.UtcNow
+                            };
+
                             try
                             {
                                 _logger.LogInformation($"Executing job: {matchedJob.JobName}");
+
                                 await matchedJob.RunAsync(cancellationToken);
+                                log.IsSuccess = true;
                             }
                             catch (Exception ex)
                             {
                                 _logger.LogError(ex, $"Job {matchedJob.JobName} failed.");
+
+                                log.IsSuccess = false;
+                                log.ErrorMessage = ex.Message;
                             }
+
+                            dbContext._schedulerLog.Add(log);
+                            await dbContext.SaveChangesAsync(cancellationToken);
                         }
                         else
                         {
