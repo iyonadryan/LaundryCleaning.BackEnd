@@ -72,7 +72,7 @@ namespace LaundryCleaning.Service.GraphQL.Users.Services.Implementations
             _logger.LogInformation("New User has been created");
 
             // send subscription
-            await _topicEventSender.SendAsync(nameof(UserSubscriptions.OnUserCreated), new UserCreated($"New User {newUser.Email} has been created" ), cancellationToken);
+            //await _topicEventSender.SendAsync(nameof(UserSubscriptions.OnUserCreated), new UserCreated($"New User {newUser.Email} has been created" ), cancellationToken);
 
             var response = new CreateUserCustomModel() { 
                 Success = true,

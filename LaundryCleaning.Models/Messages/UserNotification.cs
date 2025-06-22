@@ -1,4 +1,4 @@
-﻿namespace LaundryCleaning.Service.Common.Models.Messages
+﻿namespace LaundryCleaning.Models.Messages
 {
     public class UserNotification
     {

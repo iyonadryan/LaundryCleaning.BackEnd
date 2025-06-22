@@ -1,4 +1,4 @@
-﻿using LaundryCleaning.Service.Common.Models.Messages;
+﻿using LaundryCleaning.Models.Messages;
 using LaundryCleaning.Service.Services.Attributes;
 using LaundryCleaning.Service.Services.Interfaces;
 
