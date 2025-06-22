@@ -1,7 +1,7 @@
 ﻿using HotChocolate.Subscriptions;
+using LaundryCleaning.Models.Messages;
 using LaundryCleaning.Service.Common.Exceptions;
 using LaundryCleaning.Service.Common.Models.Entities;
-using LaundryCleaning.Service.Common.Models.Messages;
 using LaundryCleaning.Service.Data;
 using LaundryCleaning.Service.GraphQL.Users.CustomModels;
 using LaundryCleaning.Service.GraphQL.Users.Inputs;

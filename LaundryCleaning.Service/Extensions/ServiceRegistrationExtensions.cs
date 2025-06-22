@@ -1,10 +1,10 @@
 ﻿using DinkToPdf;
 using DinkToPdf.Contracts;
 using HotChocolate.Subscriptions;
+using LaundryCleaning.Models.Messages;
 using LaundryCleaning.Service.Auth.Services.Implementations;
 using LaundryCleaning.Service.Auth.Services.Interfaces;
 using LaundryCleaning.Service.Common.Handlers;
-using LaundryCleaning.Service.Common.Models.Messages;
 using LaundryCleaning.Service.Data;
 using LaundryCleaning.Service.Download;
 using LaundryCleaning.Service.GraphQL.Files.Services.Implementations;
