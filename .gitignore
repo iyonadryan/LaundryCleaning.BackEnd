@@ -7,9 +7,8 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/Dotnet.gitignore
 
-# Root Folder
+# Visual Studio
 .vs/
-*.sln
 
 # Build results
 */[Dd]ebug/
