@@ -1,6 +1,8 @@
 ﻿using FluentAssertions;
 using HotChocolate.Subscriptions;
 using LaundryCleaning.Models.Subscriptions;
+using LaundryCleaning.Service.Common.Exceptions;
+using LaundryCleaning.Service.Common.Models.Entities;
 using LaundryCleaning.Service.Data;
 using LaundryCleaning.Service.GraphQL.Users.Inputs;
 using LaundryCleaning.Service.GraphQL.Users.Services.Implementations;
@@ -69,6 +71,46 @@ namespace LaundryCleaning.Service.Tests.GraphQL.Users
                     "OnUserCreated",
                     It.IsAny<UserCreated>(),
                     It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task Mutation_CreateUser_ShouldFail_WhenEmailAlreadyExists()
+        {
+            // Arrange
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            var httpContextAccessor = new Mock<IHttpContextAccessor>();
+            httpContextAccessor.Setup(x => x.HttpContext).Returns((HttpContext)null);
+
+            var dbContext = new ApplicationDbContext(options, httpContextAccessor.Object);
+
+            // Email already in db
+            await dbContext.Users.AddAsync(new User { Email = "existing@example.com" });
+            await dbContext.SaveChangesAsync();
+
+            var passwordService = new Mock<IPasswordService>();
+            var topicSender = new Mock<ITopicEventSender>();
+            var logger = new Mock<ILogger<UserService>>();
+            var publisher = new Mock<IPublisherService>();
+
+            var service = new UserService(dbContext, passwordService.Object, topicSender.Object, logger.Object, publisher.Object);
+
+            var input = new CreateUserInput
+            {
+                Email = "existing@example.com",
+                Password = "123456",
+                Username = "duplicate",
+                FirstName = "Ada",
+                LastName = "User"
+            };
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<BusinessLogicException>(() =>
+                service.CreateUser(input, CancellationToken.None));
+
+            exception.Message.Should().Be("Email already used, please use another Email!.");
         }
 
     }
