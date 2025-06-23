@@ -1,16 +1,19 @@
-﻿using Serilog;
-
-namespace LaundryCleaning.Scheduler.Jobs.Operations
+﻿namespace LaundryCleaning.Scheduler.Jobs.Operations
 {
     public class ClosingMonthly : ITrackableJob
     {
+        private readonly ILogger<ClosingMonthly> _logger;
+
+        public ClosingMonthly(ILogger<ClosingMonthly> logger)
+        {
+            _logger = logger;
+        }
+
         public string JobName => "closingmonthly";
 
         public Task RunAsync(CancellationToken cancellationToken)
         {
-            Console.WriteLine($"[{DateTime.Now}] Running ClosingMonthly Job...");
-
-            Log.Information($"[{DateTime.Now}] Running ClosingMonthly Job...");
+            _logger.LogInformation($"[{DateTime.Now}] Running ClosingMonthly Job...");
             return Task.CompletedTask;
         }
     }
