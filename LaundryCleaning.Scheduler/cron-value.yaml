@@ -1,8 +1,8 @@
 cronJobs:
   - arguments:
       - "--closingmonthly"
-    schedule: "*/2 * * * *"  # untuk testing setiap 2 menit
+    schedule: "1 0 1 * *"  # https://crontab.guru/#1_0_1_*_*
 
   - arguments:
       - "--reportdaily"
-    schedule: "*/1 * * * *"  # untuk testing setiap 1 menit
+    schedule: "55 23 * * *" #  */2 * * * *

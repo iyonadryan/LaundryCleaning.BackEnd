@@ -19,6 +19,7 @@ using LaundryCleaning.Service.Services.Implementations;
 using LaundryCleaning.Service.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using System.Runtime.InteropServices;
 
 namespace LaundryCleaning.Service.Extensions
 {
@@ -36,9 +37,19 @@ namespace LaundryCleaning.Service.Extensions
             services.AddSingleton<SecureDownloadHelper>();
             #endregion
 
+            // Library DinkToPdf
+            var libFileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? "libwkhtmltox.dll" // Windows
+                : "libwkhtmltox.so"; // Linux
+
+            var libFullPath = System.IO.Path.Combine(
+                Directory.GetCurrentDirectory(),
+                "Storages", "Lib", "libwkhtmltox", libFileName
+            );
             var context = new CustomAssemblyLoadContext();
-            context.LoadUnmanagedLibrary(System.IO.Path.Combine(Directory.GetCurrentDirectory(), "Storages", "Lib", "libwkhtmltox", "libwkhtmltox.dll"));
+            context.LoadUnmanagedLibrary(libFullPath);
             services.AddSingleton(typeof(IConverter), new SynchronizedConverter(new PdfTools()));
+
 
             #region Dispatcher
             services.AddSingleton<SystemMessageDispatcher>();
