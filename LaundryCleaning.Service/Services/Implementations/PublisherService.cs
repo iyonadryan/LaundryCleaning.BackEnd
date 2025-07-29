@@ -1,8 +1,9 @@
-﻿using Confluent.Kafka;
-using LaundryCleaning.Service.Common.Exceptions;
+﻿using LaundryCleaning.Service.Common.Exceptions;
 using LaundryCleaning.Service.Common.Models.Entities;
 using LaundryCleaning.Service.Data;
 using LaundryCleaning.Service.Services.Interfaces;
+using RabbitMQ.Client;
+using System.Text;
 using System.Text.Json;
 
 namespace LaundryCleaning.Service.Services.Implementations
@@ -25,47 +26,50 @@ namespace LaundryCleaning.Service.Services.Implementations
 
         public async Task PublishAsync<T>(T message, CancellationToken cancellationToken)
         {
-            var config = new ProducerConfig
+            var factory = new ConnectionFactory
             {
-                BootstrapServers = _configuration["Kafka:BootstrapServers"],
-                AllowAutoCreateTopics = true,
-                Acks = Acks.All,
-                MessageTimeoutMs = 10000
+                HostName = _configuration["RabbitMQ:Host"]
             };
 
-            var topic = typeof(T).Name;
             var payload = JsonSerializer.Serialize(message);
 
             var entity = new SystemPublisher
             {
-                Topic = topic,
+                Topic = typeof(T).Name,
                 Payload = payload
             };
 
-            using var producer = new ProducerBuilder<Null, string>(config).Build();
-
             try
             {
-                _logger.LogInformation("Sending to topic {Topic}: {Payload}", topic, payload);
-                var deliveryResult = await producer.ProduceAsync(topic, new Message<Null, string> { Value = payload }, cancellationToken);
-                _logger.LogInformation($"Delivered message to, topic: {topic}, message: {deliveryResult.Value}");
+                using var connection = await factory.CreateConnectionAsync();
+                using var channel = await connection.CreateChannelAsync();
+
+                await channel.QueueDeclareAsync(queue: entity.Topic,
+                                     durable: true,
+                                     exclusive: false,
+                                     autoDelete: false,
+                                     arguments: null);
+
+                var body = Encoding.UTF8.GetBytes(entity.Payload);
+
+                await channel.BasicPublishAsync(
+                    exchange: "",
+                    routingKey: entity.Topic,
+                    mandatory: true,
+                    basicProperties: new BasicProperties { Persistent = true },
+                    body: body);
+
+                _logger.LogInformation("Published to queue {Topic}: {Payload}", entity.Topic, entity.Payload);
 
                 entity.IsPublished = true;
                 entity.PublishedAt = DateTime.Now;
             }
-            catch (ProduceException<Null, string> e)
-            {
-                entity.ErrorMessage = e.Error.Reason;
-                throw new BusinessLogicException($"Delivery failed: {e.Error.Reason}");
-            }
             catch (Exception ex)
             {
                 entity.ErrorMessage = ex.Message;
-                _logger.LogError(ex, "Unexpected Kafka produce error");
-                throw new BusinessLogicException("Unexpected Kafka produce error");
+                _logger.LogError(ex, "RabbitMQ publishing error");
+                throw new BusinessLogicException("RabbitMQ publish failed: " + ex.Message);
             }
-
-            producer.Flush(cancellationToken);
 
             await _dbContext._publisher.AddAsync(entity, cancellationToken);
             await _dbContext.SaveChangesAsync();

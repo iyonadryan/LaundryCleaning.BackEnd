@@ -1,12 +1,11 @@
-﻿using Confluent.Kafka;
-using HotChocolate.Subscriptions;
-using LaundryCleaning.Service.Common.Exceptions;
-using LaundryCleaning.Service.Common.Models.Entities;
+﻿using LaundryCleaning.Service.Common.Models.Entities;
 using LaundryCleaning.Service.Data;
 using LaundryCleaning.Service.Services.Dispatcher;
 using LaundryCleaning.Service.Services.Implementations;
 using Microsoft.EntityFrameworkCore;
-using NPOI.XWPF.UserModel;
+using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
+using System.Text;
 
 namespace LaundryCleaning.Service.Services.Background
 {
@@ -16,7 +15,8 @@ namespace LaundryCleaning.Service.Services.Background
         private readonly IConfiguration _configuration;
         private readonly IServiceScopeFactory _scopeFactory;
 
-        private IConsumer<Ignore, string>? _consumer;
+        private IConnection _connection;
+        private IChannel _channel;
         private List<string> _currentTopics = new();
 
         public ReceivedBackgroundService(ILogger<PublisherService> logger
@@ -30,14 +30,13 @@ namespace LaundryCleaning.Service.Services.Background
 
         protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
-            var config = new ConsumerConfig
+            var factory = new ConnectionFactory
             {
-                BootstrapServers = _configuration["Kafka:BootstrapServers"],
-                GroupId = "group-laundry-cleaning-received",
-                AutoOffsetReset = AutoOffsetReset.Earliest
+                HostName = _configuration["RabbitMQ:Host"]
             };
 
-            _consumer = new ConsumerBuilder<Ignore, string>(config).Build();
+            _connection = await factory.CreateConnectionAsync();
+            _channel = await _connection.CreateChannelAsync();
 
             using var scope = _scopeFactory.CreateScope();
             var _dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -57,78 +56,81 @@ namespace LaundryCleaning.Service.Services.Background
             }
 
             _currentTopics = topics;
-            _consumer.Subscribe(_currentTopics);
             _logger.LogInformation("Subscribed to initial topics: {Topics}", string.Join(", ", _currentTopics));
 
             // Run monitor loop in background
             _ = Task.Run(() => MonitorTopicsAsync(cancellationToken), cancellationToken);
 
-            while (!cancellationToken.IsCancellationRequested)
+            foreach (var topic in topics)
             {
+                DeclareAndConsume(topic, _dbContext, _dispatcher, cancellationToken);
+            }
+        }
+
+        private async void DeclareAndConsume(string topic, ApplicationDbContext _dbContext, SystemMessageDispatcher _dispatcher, CancellationToken cancellationToken)
+        {
+            await _channel.QueueDeclareAsync(queue: topic,
+                                 durable: true,
+                                 exclusive: false,
+                                 autoDelete: false,
+                                 arguments: null);
+
+            var consumer = new AsyncEventingBasicConsumer(_channel);
+            consumer.ReceivedAsync += async (model, ea) =>
+            {
+                var body = ea.Body.ToArray();
+                var message = Encoding.UTF8.GetString(body);
+
+                _logger.LogInformation("Received message from queue {topic}: {message}", topic, message);
+
+                // Dispatch
+                var entity = new SystemReceived
+                {
+                    Topic = topic,
+                    Payload = message,
+                };
                 try
                 {
-                    var result = _consumer.Consume(TimeSpan.FromSeconds(5));
+                    entity.IsProcessed = true;
+                    entity.ProcessedAt = DateTime.Now;
 
-                    if (result == null)
-                    {
-                        continue;
-                    }
-                    
-                    _logger.LogInformation("Received message from topic {Topic}: {Value}", result.Topic, result.Message.Value);
+                    await _dispatcher.DispatchAsync(topic, message, cancellationToken);
 
-                    // Dispatch
-                    var entity = new SystemReceived
-                    {
-                        Topic = result.Topic,
-                        Payload = result.Message.Value,
-                    };
-                    try
-                    {
-                        entity.IsProcessed = true;
-                        entity.ProcessedAt = DateTime.Now;
-
-                        await _dispatcher.DispatchAsync(result.Topic, result.Message.Value, cancellationToken);
-
-                        entity.ReceivedAt = DateTime.Now;
-                    }
-                    catch (Exception ex)
-                    {
-                        entity.ErrorMessage = ex.Message;
-                        _logger.LogError(ex, "Error dispatching message from topic {Topic}", result.Topic);
-                    }
-
-                    await _dbContext._received.AddAsync(entity, cancellationToken);
-                    await _dbContext.SaveChangesAsync();
-
+                    entity.ReceivedAt = DateTime.Now;
                 }
-                catch (TaskCanceledException)
+                catch (Exception ex)
                 {
-                    _logger.LogInformation("Service is stopping gracefully...");
+                    entity.ErrorMessage = ex.Message;
+                    _logger.LogError(ex, "Error dispatching message from topic {Topic}", topic);
                 }
-                catch (ConsumeException ex)
-                {
-                    _logger.LogError(ex, "Consume error");
-                }
-            }
 
-            _consumer?.Close();
+                await _dbContext._received.AddAsync(entity, cancellationToken);
+                await _dbContext.SaveChangesAsync();
+                await Task.CompletedTask;
+            };
+
+            await _channel.BasicConsumeAsync(queue: topic,
+                                 autoAck: true,
+                                 consumer: consumer);
+
+            _logger.LogInformation("Subscribed to queue: {topic}", topic);
         }
 
         private async Task MonitorTopicsAsync(CancellationToken cancellationToken)
         {
             using var scope = _scopeFactory.CreateScope();
-            var _dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var dispatcher = scope.ServiceProvider.GetRequiredService<SystemMessageDispatcher>();
 
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
-                    var newTopics = await _dbContext._publisher
+                    var newTopics = await db._publisher
                         .Select(x => x.Topic)
                         .Distinct()
                         .ToListAsync(cancellationToken);
 
-                    // Case DB 0
                     if (newTopics.Count == 0)
                     {
                         newTopics.Add("start");
@@ -136,28 +138,25 @@ namespace LaundryCleaning.Service.Services.Background
 
                     if (!newTopics.SequenceEqual(_currentTopics))
                     {
-                        _logger.LogInformation("Detected topic changes. Updating subscription...");
+                        _logger.LogInformation("Detected queue changes. Updating subscriptions...");
 
-                        _consumer?.Unsubscribe();
-                        _consumer?.Subscribe(newTopics);
+                        foreach (var topic in newTopics.Except(_currentTopics))
+                        {
+                            DeclareAndConsume(topic, db, dispatcher, cancellationToken);
+                        }
+
                         _currentTopics = newTopics;
-
-                        _logger.LogInformation("Resubscribed to: {Topics}", string.Join(", ", newTopics));
                     }
 
-                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken); // Check every 30s
-                }
-                catch (TaskCanceledException)
-                {
-                    _logger.LogInformation("MonitorTopicsAsync stopped gracefully.");
+                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error while monitoring topics");
+                    _logger.LogError(ex, "Error while monitoring queues");
                     await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
                 }
             }
         }
-
     }
+
 }
