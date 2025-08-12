@@ -38,15 +38,16 @@ namespace LaundryCleaning.Service.Services.Background
             _connection = await factory.CreateConnectionAsync();
             _channel = await _connection.CreateChannelAsync();
 
-            using var scope = _scopeFactory.CreateScope();
-            var _dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var _dispatcher = scope.ServiceProvider.GetRequiredService<SystemMessageDispatcher>();
-
             // Initial topic load
-            var topics = await _dbContext._publisher
-                        .Select(x => x.Topic)
-                        .Distinct()
-                        .ToListAsync(cancellationToken);
+            List<string> topics;
+            using (var scope = _scopeFactory.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                topics = await db._publisher
+                    .Select(x => x.Topic)
+                    .Distinct()
+                    .ToListAsync(cancellationToken);
+            }
 
             // Case DB 0
             if (topics.Count == 0)
@@ -63,11 +64,18 @@ namespace LaundryCleaning.Service.Services.Background
 
             foreach (var topic in topics)
             {
-                DeclareAndConsume(topic, _dbContext, _dispatcher, cancellationToken);
+                try
+                {
+                    await DeclareAndConsumeAsync(topic, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to declare/consume topic {Topic}", topic);
+                }
             }
         }
 
-        private async void DeclareAndConsume(string topic, ApplicationDbContext _dbContext, SystemMessageDispatcher _dispatcher, CancellationToken cancellationToken)
+        private async Task DeclareAndConsumeAsync(string topic, CancellationToken cancellationToken)
         {
             await _channel.QueueDeclareAsync(queue: topic,
                                  durable: true,
@@ -78,6 +86,10 @@ namespace LaundryCleaning.Service.Services.Background
             var consumer = new AsyncEventingBasicConsumer(_channel);
             consumer.ReceivedAsync += async (model, ea) =>
             {
+                using var scope = _scopeFactory.CreateScope();
+                var _dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var _dispatcher = scope.ServiceProvider.GetRequiredService<SystemMessageDispatcher>();
+
                 var body = ea.Body.ToArray();
                 var message = Encoding.UTF8.GetString(body);
 
@@ -88,32 +100,51 @@ namespace LaundryCleaning.Service.Services.Background
                 {
                     Topic = topic,
                     Payload = message,
+                    ReceivedAt = DateTime.Now,
+                    IsProcessed = false
                 };
                 try
                 {
+                    await _dispatcher.DispatchAsync(topic, message, cancellationToken);
+
                     entity.IsProcessed = true;
                     entity.ProcessedAt = DateTime.Now;
 
-                    await _dispatcher.DispatchAsync(topic, message, cancellationToken);
+                    // Save Record
+                    await _dbContext._received.AddAsync(entity, cancellationToken);
+                    var rows = await _dbContext.SaveChangesAsync(cancellationToken);
+                    _logger.LogInformation("Saved {rows} record(s) to Received table", rows);
 
-                    entity.ReceivedAt = DateTime.Now;
+                    await _channel.BasicAckAsync(ea.DeliveryTag, multiple: false);
                 }
                 catch (Exception ex)
                 {
                     entity.ErrorMessage = ex.Message;
                     _logger.LogError(ex, "Error dispatching message from topic {Topic}", topic);
+
+                    try
+                    {
+                        await _dbContext._received.AddAsync(entity, cancellationToken);
+                        var rows = await _dbContext.SaveChangesAsync(cancellationToken);
+                        _logger.LogInformation("Saved {rows} record(s) to Received table", rows);
+                    }
+                    catch (Exception saveEx)
+                    {
+                        _logger.LogError(saveEx, "Error saving to Received table");
+                    }
+
+                    await _channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: true);
                 }
 
-                await _dbContext._received.AddAsync(entity, cancellationToken);
-                await _dbContext.SaveChangesAsync();
-                await Task.CompletedTask;
             };
 
             await _channel.BasicConsumeAsync(queue: topic,
-                                 autoAck: true,
+                                 autoAck: false,
                                  consumer: consumer);
 
             _logger.LogInformation("Subscribed to queue: {topic}", topic);
+
+            await Task.CompletedTask;
         }
 
         private async Task MonitorTopicsAsync(CancellationToken cancellationToken)
@@ -142,7 +173,7 @@ namespace LaundryCleaning.Service.Services.Background
 
                         foreach (var topic in newTopics.Except(_currentTopics))
                         {
-                            DeclareAndConsume(topic, db, dispatcher, cancellationToken);
+                            await DeclareAndConsumeAsync(topic,cancellationToken);
                         }
 
                         _currentTopics = newTopics;

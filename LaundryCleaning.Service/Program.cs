@@ -69,13 +69,14 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddProjectServices();
 
 var seqSettings = builder.Configuration.GetSection("SeqSettings");
+var serilogSeqUrl = builder.Configuration["Serilog:WriteTo:0:Args:serverUrl"];
 var seqSecretKey = seqSettings["SecretKey"];
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug()
     .Enrich.FromLogContext()
     .WriteTo.Console()
-    .WriteTo.Seq("http://localhost:5341", apiKey: seqSecretKey)
+    .WriteTo.Seq(serilogSeqUrl, apiKey: seqSecretKey)
     .CreateLogger();
 
 builder.Host.UseSerilog();

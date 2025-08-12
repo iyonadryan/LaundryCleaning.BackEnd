@@ -1,6 +1,42 @@
 version: '3.9'
 
 services:
+  service:
+    image: laundry-service
+    container_name: laundry-service
+    ports:
+      - "5000:8080"  # http://[::]:8080
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=LaundryCleaning;User ID=sa;Password=IY0N@Passw0rd!;TrustServerCertificate=True;
+      - SeqSettings__SecretKey=Fhb5CbMGFl9lPJTNbJfyzjAvoPwcl1
+      - Serilog__WriteTo__0__Args__serverUrl=http://seq:5341 # index [0]
+      - RabbitMQ__Host=rabbitmq
+    depends_on:
+      - sqlserver
+      - seq
+      - rabbitmq
+    networks:
+      - backend
+    restart: on-failure
+
+  scheduler:
+    image: laundry-scheduler
+    container_name: laundry-scheduler
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=LaundryCleaning;User ID=sa;Password=IY0N@Passw0rd!;TrustServerCertificate=True;
+      - SeqSettings__SecretKey=Fhb5CbMGFl9lPJTNbJfyzjAvoPwcl1
+      - Serilog__WriteTo__0__Args__serverUrl=http://seq:5341 # index [0]
+      - RabbitMQ__Host=rabbitmq
+    depends_on:
+      - sqlserver
+      - seq
+      - rabbitmq
+    networks:
+      - backend
+    restart: on-failure
+  
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: sqlserver
